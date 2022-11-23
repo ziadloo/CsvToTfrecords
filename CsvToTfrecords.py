@@ -126,14 +126,18 @@ def c2t(input_csv_file, output_tfrecord_file, config):
         output_tfrecord_file: str, The filesystem location of the TFRecords
             file to be created
         config: A dictionary with the following entries:
-            "header": [str], A list of all features in the same order as they
-                appear in the CSV columns
+            "headers": [str], A list of all features in the same order as they
+                appear in the CSV columns. This list should have all the columns
+                in the CSV file, even if they are not going to be used.
             "integers": [str], A list of all integer features (a subset of
-                "headers")
+                "headers") - optional
             "floats": [str], A list of all float features (a subset of
-                "headers")
+                "headers") - optional
             "categoricals": [str], A list of all categoricals (string) features
-                (a subset of "headers")
+                (a subset of "headers") - optional
+            "mappings": [str] -> func, A dictionary, mapping the field names into
+                a function. If provided, the function will be applied to the field
+                value before being cast into the designated type - optional
     """
 
     filename = os.path.splitext(os.path.basename(output_tfrecord_file))[0]
@@ -149,16 +153,18 @@ def c2t(input_csv_file, output_tfrecord_file, config):
 
     print("Creating TFRecords file at", output_tfrecord_file, "...")
 
-    filesize = 100000000
-    if "filesize" in config:
-        filesize = config["filesize"]
+    filesize = config["filesize"] if "filesize" in config else 100000000
+    floats = config["floats"] if "floats" in config else []
+    integers = config["integers"] if "integers" in config else []
+    categoricals = config["categoricals"] if "categoricals" in config else []
+    mappings = config["mappings"] if "mappings" in config else {}
 
     for i, row in enumerate(_create_csv_iterator(input_csv_file, skip_header=True)):
 
         if len(row) == 0:
             continue
 
-        example = _create_example(row, config["headers"], config["floats"], config["integers"], config["categoricals"], config["mappings"])
+        example = _create_example(row, config["headers"], floats, integers, categoricals, mappings)
         content = example.SerializeToString()
         writer.write(content)
 
