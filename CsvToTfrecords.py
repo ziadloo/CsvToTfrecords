@@ -3,8 +3,17 @@ import csv
 import os
 
 
-def _create_csv_iterator(csv_file_path, skip_header):
-    """Returns an iterator to read the CSV file line by line"""
+def _create_csv_iterator(csv_file_path, skip_header: bool=True):
+    """Returns an iterator to read the CSV file line by line
+
+    Args:
+        csv_file_path: str, The filesystem path to the CSV file
+        skip_header: bool, Whether the CSV file has a header row
+            that needs to be ignored
+
+    Yields:
+        A list of strings holding one row of data
+    """
 
     with tf.io.gfile.GFile(csv_file_path) as csv_file:
         reader = csv.reader(csv_file)
@@ -15,7 +24,15 @@ def _create_csv_iterator(csv_file_path, skip_header):
 
 
 def _bytes_feature(value):
-    """Returns a bytes_list from a string / byte."""
+    """Returns a bytes_list from a string / byte.
+
+    Args:
+        value: str, the string representation of the feature value
+
+    Returns:
+        Converts and returns the feature either as a byte list or
+            as an empty feature
+    """
 
     # If the value is an eager tensor BytesList won't unpack a string from an EagerTensor.
     if isinstance(value, type(tf.constant(0))):
@@ -27,7 +44,15 @@ def _bytes_feature(value):
 
 
 def _float_feature(value):
-    """Returns a float_list from a float / double."""
+    """Returns a float_list from a float / double.
+
+    Args:
+        value: str, the string representation of the feature value
+
+    Returns:
+        Converts and returns the feature either as a float list or
+            as an empty feature
+    """
 
     try:
         return tf.train.Feature(float_list=tf.train.FloatList(value=[float(value)]))
@@ -36,7 +61,15 @@ def _float_feature(value):
 
 
 def _int64_feature(value):
-    """Returns an int64_list from a bool / enum / int / uint."""
+    """Returns an int64_list from a bool / enum / int / uint.
+
+    Args:
+        value: str, the string representation of the feature value
+
+    Returns:
+        Converts and returns the feature either as an integer list or
+            as an empty feature
+    """
 
     try:
         return tf.train.Feature(int64_list=tf.train.Int64List(value=[int(value)]))
@@ -44,31 +77,60 @@ def _int64_feature(value):
         return tf.train.Feature()
 
 
-def _create_example(row, HEADER, FLOAT_FEATURES, INT_FEATURES, CATEGORICAL_FEATURES):
-    """Returns a tensorflow.Example Protocol Buffer object."""
+def _create_example(row, header, float_features, int_features, categorical_features):
+    """Converts a single row of CSV into a tensorflow.Example Protocol Buffer object.
+
+    Args:
+        row: [str], A list of feature values in string format
+        header: [str], A list of all the feature names in the same column order
+            as they appear in the CSV file
+        float_features: [str], A lsit of feature names that are of floating point
+            type
+        int_features: [str], A list of feature names that are of integer type
+        categorical_features: [str], A list of feature names that are of string
+            type and are considered categorical
+
+    Returns:
+        An instance of tf.train.Example class which represents a single sample in
+            dataset
+    """
 
     features = {}
 
-    for feature_index, feature_name in enumerate(HEADER):
+    for feature_index, feature_name in enumerate(header):
 
         feature_value = row[feature_index]
 
-        if feature_name in FLOAT_FEATURES:
+        if feature_name in float_features:
             features[feature_name] = _float_feature(feature_value)
 
-        elif feature_name in CATEGORICAL_FEATURES:
-            features[feature_name] = _bytes_feature(feature_value)
-
-        elif feature_name in INT_FEATURES:
+        elif feature_name in int_features:
             features[feature_name] = _int64_feature(feature_value)
+
+        elif feature_name in categorical_features:
+            features[feature_name] = _bytes_feature(feature_value)
 
     return tf.train.Example(features=tf.train.Features(feature=features))
 
 
 def c2t(input_csv_file, output_tfrecord_file, config):
-    """
-    Creates a TFRecords file for the given input data and
-    example transofmration function
+    """Creates a TFRecords file for the given input data and
+        example transofmration function
+
+    Args:
+        input_csv_file: str, The filesystem location of the CSV file to
+            be read
+        output_tfrecord_file: str, The filesystem location of the TFRecords
+            file to be created
+        config: A dictionary with the following entries:
+            "header": [str], A list of all features in the same order as they
+                appear in the CSV columns
+            "integers": [str], A list of all integer features (a subset of
+                "headers")
+            "floats": [str], A list of all float features (a subset of
+                "headers")
+            "categoricals": [str], A list of all categoricals (string) features
+                (a subset of "headers")
     """
 
     filename = os.path.splitext(os.path.basename(output_tfrecord_file))[0]
