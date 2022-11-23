@@ -23,7 +23,7 @@ def _create_csv_iterator(csv_file_path, skip_header: bool=True):
             yield row
 
 
-def _bytes_feature(value):
+def _bytes_feature(value, mapping):
     """Returns a bytes_list from a string / byte.
 
     Args:
@@ -40,10 +40,12 @@ def _bytes_feature(value):
     if value == "" or value is None:
         return tf.train.Feature()
     else:
-        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value.encode()]))
+        try:
+            return tf.train.Feature(bytes_list=tf.train.BytesList(value=[mapping(value).encode()]))
+        except Exception as e:
+            return tf.train.Feature()
 
-
-def _float_feature(value):
+def _float_feature(value, mapping):
     """Returns a float_list from a float / double.
 
     Args:
@@ -55,12 +57,12 @@ def _float_feature(value):
     """
 
     try:
-        return tf.train.Feature(float_list=tf.train.FloatList(value=[float(value)]))
-    except ValueError as ve:
+        return tf.train.Feature(float_list=tf.train.FloatList(value=[float(mapping(value))]))
+    except Exception as e:
         return tf.train.Feature()
 
 
-def _int64_feature(value):
+def _int64_feature(value, mapping):
     """Returns an int64_list from a bool / enum / int / uint.
 
     Args:
@@ -72,12 +74,12 @@ def _int64_feature(value):
     """
 
     try:
-        return tf.train.Feature(int64_list=tf.train.Int64List(value=[int(value)]))
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=[int(mapping(value))]))
     except ValueError as ve:
         return tf.train.Feature()
 
 
-def _create_example(row, header, float_features, int_features, categorical_features):
+def _create_example(row, header, float_features, int_features, categorical_features, mappings):
     """Converts a single row of CSV into a tensorflow.Example Protocol Buffer object.
 
     Args:
@@ -100,15 +102,16 @@ def _create_example(row, header, float_features, int_features, categorical_featu
     for feature_index, feature_name in enumerate(header):
 
         feature_value = row[feature_index]
+        m = mappings[feature_name] if feature_name in mappings else lambda x: x
 
         if feature_name in float_features:
-            features[feature_name] = _float_feature(feature_value)
+            features[feature_name] = _float_feature(feature_value, m)
 
         elif feature_name in int_features:
-            features[feature_name] = _int64_feature(feature_value)
+            features[feature_name] = _int64_feature(feature_value, m)
 
         elif feature_name in categorical_features:
-            features[feature_name] = _bytes_feature(feature_value)
+            features[feature_name] = _bytes_feature(feature_value, m)
 
     return tf.train.Example(features=tf.train.Features(feature=features))
 
@@ -155,7 +158,7 @@ def c2t(input_csv_file, output_tfrecord_file, config):
         if len(row) == 0:
             continue
 
-        example = _create_example(row, config["header"], config["floats"], config["integers"], config["categoricals"])
+        example = _create_example(row, config["headers"], config["floats"], config["integers"], config["categoricals"], config["mappings"])
         content = example.SerializeToString()
         writer.write(content)
 
