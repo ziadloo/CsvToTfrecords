@@ -57,5 +57,5 @@ config = {
     ],
 }
 
-c2t.convert('./data.csv', './dataset/tfrecords/data.tfrecords', config)
+c2t('./data.csv', './dataset/tfrecords/data.tfrecords', config)
 ```
